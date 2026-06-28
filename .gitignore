@@ -26,3 +26,6 @@ outputs/*.html
 .vscode/
 .idea/
 .DS_Store
+
+# Ignore large raw datasets
+data/raw/*.RData
