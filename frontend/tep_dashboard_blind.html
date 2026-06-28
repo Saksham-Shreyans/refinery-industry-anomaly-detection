@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chemical Plant · AI Safety Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Source+Sans+3:wght@300;400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ─── Variables ─── */
+:root {
+  --bg:       #07090F;
+  --s1:       #0E1420;
+  --s2:       #141D2E;
+  --s3:       #1C2840;
+  --border:   #253047;
+  --text:     #DDE4EF;
+  --muted:    #7B8EA8;
+  --dim:      #3D4F6A;
+  --green:    #1FD490;
+  --green2:   rgba(31,212,144,0.12);
+  --amber:    #F5A623;
+  --amber2:   rgba(245,166,35,0.12);
+  --red:      #FF4D5E;
+  --red2:     rgba(255,77,94,0.12);
+  --blue:     #4D9EFF;
+  --purple:   #A78BFA;
+  /* blind mode accent */
+  --blind:    #A78BFA;
+  --blind2:   rgba(167,139,250,0.12);
+  /* mixed timing mode accent */
+  --mixed:    #FB923C;
+  --mixed2:   rgba(251,146,60,0.12);
+  --font-ui:   'Source Sans 3', system-ui, sans-serif;
+  --font-data: 'Rajdhani', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --r:  10px;
+  --r2: 6px;
+}
+
+/* ─── Blind Mode Global ─── */
+body.blind-active { --green: #A78BFA; --green2: rgba(167,139,250,0.12); }
+/* ─── Mixed Mode Global ─── */
+body.mixed-active { --green: #FB923C; --green2: rgba(251,146,60,0.12); }
+
+/* ─── Mode tabs (replaces single toggle button) ─── */
+.mode-tabs { display: flex; gap: 2px; }
+.mode-tab {
+  padding: 5px 11px; border-radius: 4px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted); font-family: var(--font-mono);
+  font-size: 11px; cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.mode-tab:hover:not(.active) { color: var(--text); border-color: var(--dim); }
+.mode-tab.active-normal { background: var(--s3); border-color: rgba(31,212,144,.5); color: var(--green); }
+.mode-tab.active-mixed  { background: var(--s3); border-color: rgba(251,146,60,.5); color: var(--mixed); }
+.mode-tab.active-blind  { background: var(--s3); border-color: rgba(167,139,250,.5); color: var(--blind); }
+
+/* ─── Mixed mode run info chip (inside controls bar) ─── */
+.mixed-run-chip {
+  background: var(--mixed2); border: 1px solid rgba(251,146,60,.35);
+  border-radius: var(--r2); padding: 4px 10px; font-size: 11px;
+  color: var(--mixed); font-family: var(--font-mono); white-space: nowrap;
+  display: none;
+}
+.mixed-run-chip.show { display: inline-block; }
+
+/* ─── Mixed mode info panel (below controls) ─── */
+.mixed-info-bar {
+  background: var(--s1); border: 1px solid rgba(251,146,60,.25);
+  border-radius: var(--r); padding: 10px 16px; margin-top: 8px;
+  display: none; gap: 20px; align-items: center; flex-wrap: wrap;
+}
+.mixed-info-bar.show { display: flex; }
+.mixed-info-cell { display: flex; flex-direction: column; gap: 2px; }
+.mixed-info-label { font-size: 9px; font-weight: 600; letter-spacing: .12em;
+                    text-transform: uppercase; color: var(--muted); }
+.mixed-info-val   { font-family: var(--font-data); font-size: 15px; font-weight: 700; color: var(--mixed); }
+.mixed-intro-badge {
+  background: rgba(245,166,35,.12); border: 1px solid rgba(245,166,35,.4);
+  border-radius: 4px; padding: 3px 9px; font-size: 11px; font-family: var(--font-mono);
+  color: var(--amber); display: inline-flex; align-items: center; gap: 5px;
+}
+
+/* ─── Mixed scoreboard strip ─── */
+.mixed-strip {
+  background: var(--s1); border: 1px solid rgba(251,146,60,.25);
+  border-radius: var(--r); padding: 14px 18px; margin-top: 10px;
+  display: none; gap: 18px; align-items: flex-start; flex-wrap: wrap;
+}
+.mixed-strip.show { display: flex; }
+.mixed-score-box {
+  background: var(--s2); border: 1px solid var(--border); border-radius: var(--r2);
+  padding: 10px 16px; min-width: 120px; text-align: center; flex-shrink: 0;
+}
+.mixed-score-label { font-size: 10px; font-weight: 600; letter-spacing: .1em;
+                      text-transform: uppercase; color: var(--muted); }
+.mixed-score-val   { font-family: var(--font-data); font-size: 26px; font-weight: 700;
+                      color: var(--mixed); margin-top: 2px; }
+.mixed-runs-table  { flex: 1; min-width: 280px; }
+.mixed-runs-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.mixed-runs-table th { color: var(--muted); font-size: 10px; font-weight: 600;
+                       letter-spacing: .08em; text-transform: uppercase;
+                       padding: 0 6px 6px; text-align: left; }
+.mixed-runs-table td { padding: 3px 6px; color: var(--text); font-family: var(--font-mono);
+                       border-top: 1px solid var(--s3); }
+.mixed-runs-table .cd { color: var(--green); }
+.mixed-runs-table .ms { color: var(--red); }
+.mixed-runs-table .ti { color: var(--amber); }
+
+/* blindModeCtrl visibility is controlled by JS switchMode() */
+
+/* ─── Blind mode score strip ─── */
+.blind-strip {
+  background: var(--s1); border: 1px solid rgba(167,139,250,.25);
+  border-radius: var(--r); padding: 14px 18px; margin-top: 10px;
+  display: none; gap: 18px; align-items: flex-start; flex-wrap: wrap;
+}
+.blind-strip.show { display: flex; }
+.blind-score-box {
+  background: var(--s2); border: 1px solid var(--border); border-radius: var(--r2);
+  padding: 10px 16px; min-width: 120px; text-align: center; flex-shrink: 0;
+}
+.blind-score-label { font-size: 10px; font-weight: 600; letter-spacing: .1em;
+                      text-transform: uppercase; color: var(--muted); }
+.blind-score-val   { font-family: var(--font-data); font-size: 26px; font-weight: 700;
+                      color: var(--blind); margin-top: 2px; }
+.blind-runs-table  { flex: 1; min-width: 260px; }
+.blind-runs-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.blind-runs-table th { color: var(--muted); font-size: 10px; font-weight: 600;
+                        letter-spacing: .08em; text-transform: uppercase;
+                        padding: 0 6px 6px; text-align: left; }
+.blind-runs-table td { padding: 3px 6px; color: var(--text); font-family: var(--font-mono);
+                        border-top: 1px solid var(--s3); }
+.blind-runs-table .cr { color: var(--green); }
+.blind-runs-table .wr { color: var(--red); }
+.blind-runs-table .pn { color: var(--muted); }
+
+/* ─── Reveal button ─── */
+.btn-reveal {
+  background: rgba(167,139,250,.15); border: 1px solid rgba(167,139,250,.4);
+  color: var(--blind); font-size: 14px; padding: 8px 18px; margin-top: 10px;
+  display: none;
+}
+.btn-reveal.show { display: flex; }
+
+/* ─── Reveal result panel ─── */
+.reveal-panel {
+  background: var(--s2); border: 1px solid var(--border); border-radius: var(--r2);
+  padding: 12px 16px; margin-top: 10px; display: none;
+}
+.reveal-panel.show { display: block; }
+.reveal-correct   { color: var(--green); font-family: var(--font-data);
+                     font-size: 15px; font-weight: 700; }
+.reveal-wrong     { color: var(--red);   font-family: var(--font-data);
+                     font-size: 15px; font-weight: 700; }
+
+/* ─── Reset ─── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { font-family: var(--font-ui); background: var(--bg); color: var(--text);
+       min-height: 100vh; overflow-x: hidden; }
+
+/* ─── App Shell ─── */
+.app { max-width: 1440px; margin: 0 auto; padding: 0 24px 24px; }
+
+/* ─── Header ─── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 0; border-bottom: 1px solid var(--border); gap: 12px;
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-mark {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: linear-gradient(135deg, #1FD490 0%, #0EA879 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.logo-text h1 { font-family: var(--font-data); font-size: 17px; font-weight: 700;
+                 letter-spacing: .06em; color: var(--text); }
+.logo-text p  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.header-right { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.badge {
+  display: flex; align-items: center; gap: 6px; padding: 5px 12px;
+  border-radius: 20px; border: 1px solid; font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; transition: all .3s;
+}
+.badge.ok   { background: rgba(31,212,144,.1); border-color: rgba(31,212,144,.3); color: var(--green); }
+.badge.err  { background: rgba(255,77,94,.1);  border-color: rgba(255,77,94,.3);  color: var(--red); }
+.badge.warn { background: rgba(245,166,35,.1); border-color: rgba(245,166,35,.3); color: var(--amber); }
+.badge-dot  { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge-dot.pulse { animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+.tag { font-family: var(--font-mono); font-size: 10px; color: var(--muted);
+       padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; }
+
+/* ─── Controls ─── */
+.controls {
+  display: flex; align-items: center; gap: 14px; padding: 14px 0;
+  border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+.ctrl-label { font-size: 10px; font-weight: 600; letter-spacing: .1em;
+              text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.ctrl-group { display: flex; align-items: center; gap: 8px; }
+select, .num-in {
+  background: var(--s2); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--r2); padding: 7px 10px; font-family: var(--font-ui);
+  font-size: 13px; outline: none; cursor: pointer; transition: border-color .2s;
+}
+select { padding-right: 26px; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237B8EA8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center; }
+select:focus, .num-in:focus { border-color: var(--blue); }
+.num-in { width: 64px; text-align: center; font-family: var(--font-mono); }
+.num-hint { font-size: 11px; color: var(--dim); }
+
+.btn {
+  display: flex; align-items: center; gap: 8px; padding: 7px 18px;
+  border-radius: var(--r2); border: none; cursor: pointer;
+  font-family: var(--font-data); font-size: 15px; font-weight: 700;
+  letter-spacing: .04em; transition: all .15s; white-space: nowrap;
+}
+.btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn:disabled { opacity: .35; cursor: not-allowed; transform: none; filter: none; }
+.btn-play  { background: var(--green); color: #061A11; }
+.btn-pause { background: var(--amber); color: #1A1000; }
+.btn-again { background: var(--s3);   color: var(--text); border: 1px solid var(--border); }
+
+.speed-wrap { display: flex; gap: 4px; }
+.spd { padding: 5px 9px; border-radius: 4px; border: 1px solid var(--border);
+       background: transparent; color: var(--muted); font-family: var(--font-mono);
+       font-size: 11px; cursor: pointer; transition: all .15s; }
+.spd.on  { background: var(--s3); border-color: var(--blue); color: var(--blue); }
+.spd:hover:not(.on) { color: var(--text); border-color: var(--dim); }
+
+.progress-wrap { flex: 1; min-width: 180px; display: flex; align-items: center; gap: 10px; }
+.progress-bar { flex: 1; height: 4px; background: var(--s3); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 2px; background: var(--green); transition: width .1s, background .5s; }
+.progress-fill.alarmed { background: var(--red); }
+.prog-time { font-family: var(--font-mono); font-size: 10px; color: var(--muted); white-space: nowrap; min-width: 72px; }
+
+/* ─── Main Layout ─── */
+.main {
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  gap: 14px;
+  padding: 14px 0 0;
+}
+
+/* ─── Left Column ─── */
+.left { display: flex; flex-direction: column; gap: 12px; }
+
+/* ─── Plant Status Card ─── */
+.status-card {
+  background: var(--s1); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 20px; display: flex; flex-direction: column; align-items: center;
+  transition: border-color .5s, background .5s, box-shadow .5s;
+}
+.status-card.normal { border-color: rgba(31,212,144,.35); background: rgba(31,212,144,.03);
+                       box-shadow: 0 0 30px rgba(31,212,144,.06); }
+.status-card.fault  { border-color: rgba(255,77,94,.4);   background: rgba(255,77,94,.04);
+                       box-shadow: 0 0 30px rgba(255,77,94,.1); animation: card-pulse 2s ease-in-out infinite; }
+@keyframes card-pulse { 0%,100%{box-shadow:0 0 20px rgba(255,77,94,.08)} 50%{box-shadow:0 0 40px rgba(255,77,94,.18)} }
+.card-label { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); align-self: flex-start; margin-bottom: 10px; }
+
+/* Gauge */
+.gauge-svg { width: 190px; height: 120px; }
+.g-track { fill: none; stroke: var(--s3); stroke-width: 12; stroke-linecap: round; }
+.g-fill  { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke-dasharray .3s, stroke .5s; }
+.g-val   { font-family: var(--font-data); font-size: 34px; font-weight: 700;
+            fill: var(--text); text-anchor: middle; }
+.g-sub   { font-family: var(--font-ui); font-size: 10px; fill: var(--muted); text-anchor: middle; }
+
+/* Status pill */
+.status-pill {
+  width: 100%; padding: 10px 12px; border-radius: var(--r2); text-align: center;
+  border: 1px solid var(--border); transition: all .4s;
+}
+.status-pill.idle   { background: var(--s2); }
+.status-pill.normal { background: var(--green2); border-color: rgba(31,212,144,.3); }
+.status-pill.fault  { background: var(--red2);   border-color: rgba(255,77,94,.3); animation: pill-blink 1.5s ease-in-out infinite; }
+.status-pill.search { background: var(--amber2); border-color: rgba(245,166,35,.3); }
+@keyframes pill-blink { 0%,100%{opacity:1} 50%{opacity:.7} }
+.pill-icon { font-size: 18px; }
+.pill-main { font-family: var(--font-data); font-size: 15px; font-weight: 700; letter-spacing: .04em; color: var(--text); }
+.pill-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ─── AI Reads Card ─── */
+.ai-card {
+  background: var(--s1); border: 1px solid var(--border); border-radius: var(--r); padding: 16px;
+}
+.curr-pred {
+  background: var(--s2); border-radius: var(--r2); padding: 11px 13px; margin-bottom: 10px;
+}
+.pred-name { font-family: var(--font-data); font-size: 16px; font-weight: 700; color: var(--muted); }
+.pred-conf { font-family: var(--font-mono); font-size: 11px; color: var(--dim); margin-top: 2px; }
+
+.prob-list { display: flex; flex-direction: column; gap: 6px; }
+.prob-row  { display: grid; grid-template-columns: 82px 1fr 34px; gap: 7px; align-items: center; }
+.prob-label{ font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prob-track{ height: 5px; background: var(--s3); border-radius: 3px; overflow: hidden; }
+.prob-bar  { height: 100%; border-radius: 3px; transition: width .25s; }
+.prob-pct  { font-family: var(--font-mono); font-size: 10px; color: var(--dim); text-align: right; }
+
+/* ─── Detection Result Box ─── */
+.detect-box {
+  background: rgba(31,212,144,.07); border: 1px solid rgba(31,212,144,.25);
+  border-radius: var(--r2); padding: 10px 13px; margin-top: 10px; display: none;
+}
+.detect-box.show { display: block; }
+.detect-title { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+                color: var(--green); margin-bottom: 4px; }
+.detect-body  { font-size: 12px; color: var(--muted); line-height: 1.55; }
+.detect-body strong { color: var(--text); }
+
+/* ─── Right Column ─── */
+.right { display: flex; flex-direction: column; gap: 12px; }
+
+/* Chart Card */
+.chart-card {
+  background: var(--s1); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 18px 20px; flex: 1;
+}
+.chart-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+.chart-title { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.chart-desc  { font-size: 11px; color: var(--dim); margin-top: 3px; }
+.legend { display: flex; gap: 14px; }
+.leg-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+.leg-dot  { width: 8px; height: 3px; border-radius: 2px; }
+canvas { display: block; width: 100%; }
+
+/* Fault info strip */
+.fault-strip {
+  background: var(--s1); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 14px 18px; display: flex; gap: 14px; align-items: flex-start;
+}
+.strip-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.strip-body p { font-size: 13px; color: var(--muted); line-height: 1.55; }
+.strip-body strong { color: var(--text); }
+
+/* ─── Stats Row ─── */
+.stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding-top: 2px;
+}
+.stat {
+  background: var(--s1); border: 1px solid var(--border); border-radius: var(--r); padding: 16px;
+  transition: all .5s;
+}
+.stat.good { border-color: rgba(31,212,144,.35); background: rgba(31,212,144,.03); }
+.stat.bad  { border-color: rgba(255,77,94,.35);  background: rgba(255,77,94,.03); }
+.stat.amber{ border-color: rgba(245,166,35,.3);  background: rgba(245,166,35,.03); }
+.stat-label{ font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+             color: var(--muted); margin-bottom: 6px; }
+.stat-val  { font-family: var(--font-data); font-size: 28px; font-weight: 700; color: var(--text);
+             line-height: 1; margin-bottom: 3px; }
+.stat-val.g { color: var(--green); }
+.stat-val.r { color: var(--red); }
+.stat-val.a { color: var(--amber); }
+.stat-val.p { color: var(--purple); }
+.stat-sub  { font-size: 11px; color: var(--dim); }
+
+/* ─── Alarm Flash ─── */
+#flasher {
+  position: fixed; inset: 0; pointer-events: none; z-index: 999;
+  background: rgba(255,77,94,.2); opacity: 0;
+}
+#flasher.flash { animation: do-flash .6s ease-out forwards; }
+@keyframes do-flash { 0%{opacity:.7} 100%{opacity:0} }
+
+/* ─── Responsive ─── */
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .stats { grid-template-columns: 1fr; }
+  .controls { gap: 10px; }
+}
+</style>
+</head>
+<body>
+<div id="flasher"></div>
+<div class="app">
+
+<!-- ═══ HEADER ═══ -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">⚗</div>
+    <div class="logo-text">
+      <h1>PLANT SAFETY MONITOR</h1>
+      <p>AI fault detection · Tennessee Eastman Chemical Process</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="badge warn" id="connBadge">
+      <div class="badge-dot pulse" id="connDot"></div>
+      <span id="connText">CONNECTING</span>
+    </div>
+    <div class="tag">Harvard Dataverse · TEP · 52 Sensors</div>
+  </div>
+</header>
+
+<!-- ═══ CONTROLS ═══ -->
+<div class="controls">
+  <!-- Mode Tabs -->
+  <div class="ctrl-group">
+    <div class="mode-tabs">
+      <button class="mode-tab active-normal" id="modeTabNormal" title="Standard mode: pick a fault type and run">📋 Normal</button>
+      <button class="mode-tab" id="modeTabMixed" title="Random Timing mode: faults injected at random times — tests model generalisation">🎲 Rand Timing</button>
+      <button class="mode-tab" id="modeTabBlind" title="Blind Test mode: true fault is hidden — can the AI identify it?">🎯 Blind</button>
+    </div>
+  </div>
+  <!-- Normal mode: fault selector -->
+  <div class="ctrl-group" id="normalModeCtrl">
+    <span class="ctrl-label">Fault Scenario</span>
+    <select id="faultSel">
+      <option value="">— Pick a fault to test —</option>
+    </select>
+  </div>
+  <!-- Mixed timing mode: run selector + info chip -->
+  <div class="ctrl-group" id="mixedModeCtrl" style="display:none">
+    <span class="ctrl-label" style="color:var(--mixed)">🎲 Mixed Run</span>
+    <input type="number" class="num-in" id="mixedRunIn" value="1" min="1" max="153" style="border-color:rgba(251,146,60,.4)">
+    <span class="num-hint" id="mixedRunHint">/ 153</span>
+    <span class="mixed-run-chip" id="mixedRunChip">—</span>
+  </div>
+  <!-- Blind mode: blind run selector -->
+  <div class="ctrl-group" id="blindModeCtrl" style="display:none">
+    <span class="ctrl-label" style="color:var(--blind)">🎯 Blind Run</span>
+    <input type="number" class="num-in" id="blindRunIn" value="1" min="1" max="40" style="border-color:rgba(167,139,250,.4)">
+    <span class="num-hint" id="blindRunHint">/ 40</span>
+  </div>
+  <div class="ctrl-group" id="normalRunCtrl">
+    <span class="ctrl-label">Simulation Run</span>
+    <input type="number" class="num-in" id="runIn" value="1" min="1" max="500">
+    <span class="num-hint">/ 500</span>
+  </div>
+  <button class="btn btn-play" id="playBtn" disabled>▶ START</button>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Speed</span>
+    <div class="speed-wrap" id="spdWrap">
+      <button class="spd" data-v="1">1×</button>
+      <button class="spd on" data-v="5">5×</button>
+      <button class="spd" data-v="15">15×</button>
+      <button class="spd" data-v="40">40×</button>
+    </div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
+    <span class="prog-time" id="progTime">0:00 / 48:00 h</span>
+  </div>
+</div>
+
+<!-- ═══ MIXED TIMING INFO BAR (visible only in mixed mode, updates on run pick) ═══ -->
+<div class="mixed-info-bar" id="mixedInfoBar">
+  <div class="mixed-info-cell">
+    <div class="mixed-info-label">Fault Type</div>
+    <div class="mixed-info-val" id="mixedFaultName">—</div>
+  </div>
+  <div class="mixed-info-cell">
+    <div class="mixed-info-label">Fault Number</div>
+    <div class="mixed-info-val" id="mixedFaultNum">—</div>
+  </div>
+  <div class="mixed-info-cell">
+    <div class="mixed-info-label">Injection Time</div>
+    <div>
+      <span class="mixed-intro-badge" id="mixedIntroTime">⏱ t = —</span>
+    </div>
+  </div>
+  <div class="mixed-info-cell">
+    <div class="mixed-info-label">Simulation Hours</div>
+    <div class="mixed-info-val" id="mixedTotalHours">—</div>
+  </div>
+  <div style="flex:1; font-size:11px; color:var(--muted); padding-left:4px;">
+    <em>Unlike the traditional TEP benchmark (always t=160), this run's fault is injected at a
+    random time. The AI must detect it from <strong style="color:var(--text)">signal patterns alone</strong>,
+    not from timing.</em>
+  </div>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main">
+
+  <!-- Left Column -->
+  <div class="left">
+
+    <!-- Plant Health Gauge -->
+    <div class="status-card idle-state" id="statusCard">
+      <div class="card-label">Plant Health</div>
+      <svg class="gauge-svg" viewBox="0 0 190 120">
+        <!-- Track arc: center(95,105) r=78, from (17,105) to (173,105) upper semicircle -->
+        <path class="g-track" d="M 17 105 A 78 78 0 0 0 173 105"/>
+        <!-- Fill arc (same path, stroke-dasharray animates health) -->
+        <path class="g-fill" id="gFill" d="M 17 105 A 78 78 0 0 0 173 105"
+              stroke="var(--green)" stroke-dasharray="245 245"/>
+        <!-- Center text -->
+        <text class="g-val" id="gVal" x="95" y="80">—</text>
+        <text class="g-sub" x="95" y="98">HEALTH</text>
+        <text class="g-sub" x="20"  y="118" style="font-size:9px">0%</text>
+        <text class="g-sub" x="170" y="118" style="font-size:9px;text-anchor:end">100%</text>
+      </svg>
+      <div class="status-pill idle" id="statusPill">
+        <div class="pill-icon">⏸</div>
+        <div class="pill-main">CHOOSE A SCENARIO</div>
+        <div class="pill-sub">Select a fault type above and press Start</div>
+      </div>
+    </div>
+
+    <!-- AI Classification -->
+    <div class="ai-card">
+      <div class="card-label" style="margin-bottom:10px">What the AI currently sees</div>
+      <div class="curr-pred" id="currPred">
+        <div class="pred-name" id="predName">—</div>
+        <div class="pred-conf" id="predConf">Waiting for simulation…</div>
+      </div>
+      <div class="prob-list" id="probList">
+        <div class="prob-row" style="opacity:.4">
+          <div class="prob-label">Normal</div>
+          <div class="prob-track"><div class="prob-bar" style="width:0%;background:var(--green)"></div></div>
+          <div class="prob-pct">—</div>
+        </div>
+      </div>
+      <!-- Detection result -->
+      <div class="detect-box" id="detectBox">
+        <div class="detect-title">🎯 Fault Detected</div>
+        <div class="detect-body" id="detectBody">—</div>
+      </div>
+    </div>
+
+  </div><!-- .left -->
+
+  <!-- Right Column -->
+  <div class="right">
+
+    <!-- Signal Chart -->
+    <div class="chart-card">
+      <div class="chart-head">
+        <div>
+          <div class="chart-title">AI Fault Probability · Live Signal over 48 Hours</div>
+          <div class="chart-desc">Near 0% = plant is normal. Rises when AI detects a problem. Red dots = alarm fired.</div>
+        </div>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:var(--amber)"></div>Fault prob.</div>
+          <div class="leg-item"><div class="leg-dot" style="background:rgba(255,77,94,.6)"></div>Alarm</div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>First detect</div>
+        </div>
+      </div>
+      <canvas id="chart" height="210"></canvas>
+    </div>
+
+    <!-- Fault info / result strip -->
+    <div class="fault-strip" id="strip">
+      <div class="strip-icon">ℹ️</div>
+      <div class="strip-body">
+        <p>Select a fault scenario from the controls above. Each scenario simulates a different problem that could occur in the chemical plant — from a cooling valve getting stuck to a sudden pressure spike. The AI watches <strong>52 sensors simultaneously</strong> and decides whether the plant is operating normally or has developed a fault.</p>
+      </div>
+    </div>
+
+  </div><!-- .right -->
+</div><!-- .main -->
+
+<!-- ═══ STATS ROW ═══ -->
+<div class="stats" style="margin-top:12px">
+  <div class="stat" id="sDR">
+    <div class="stat-label">Faults Caught</div>
+    <div class="stat-val" id="sDRv">—</div>
+    <div class="stat-sub" id="sDRs">Detection rate for this run</div>
+  </div>
+  <div class="stat" id="sSPD">
+    <div class="stat-label">Detection Speed</div>
+    <div class="stat-val" id="sSPDv">—</div>
+    <div class="stat-sub" id="sSPDs">After fault was introduced</div>
+  </div>
+  <div class="stat" id="sFAR">
+    <div class="stat-label">False Alarms</div>
+    <div class="stat-val" id="sFARv">—</div>
+    <div class="stat-sub" id="sFARs">During normal operation</div>
+  </div>
+  <div class="stat" id="sDX">
+    <div class="stat-label">AI Diagnosis</div>
+    <div class="stat-val" id="sDXv" style="font-size:17px;padding-top:5px">—</div>
+    <div class="stat-sub" id="sDXs">Fault type identified</div>
+  </div>
+</div>
+
+</div><!-- .app -->
+
+<!-- ═══ BLIND SCOREBOARD (shown only in blind mode, below stats) ═══ -->
+<div class="app">
+  <!-- Reveal button (appears after a blind run finishes) -->
+  <button class="btn btn-reveal" id="revealBtn">🔍 Reveal True Fault</button>
+
+  <!-- Reveal result panel -->
+  <div class="reveal-panel" id="revealPanel">
+    <div id="revealContent">—</div>
+  </div>
+
+  <!-- Running blind scoreboard -->
+  <div class="blind-strip" id="blindStrip">
+    <div class="blind-score-box">
+      <div class="blind-score-label">AI Score</div>
+      <div class="blind-score-val" id="blindScoreVal">0 / 0</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px" id="blindAccVal">—</div>
+    </div>
+    <div class="blind-runs-table">
+      <table>
+        <thead><tr>
+          <th>Run</th><th>AI Guess</th><th>True Fault</th><th>Result</th>
+        </tr></thead>
+        <tbody id="blindTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Mixed Timing Scoreboard -->
+  <div class="mixed-strip" id="mixedStrip">
+    <div class="mixed-score-box">
+      <div class="mixed-score-label">Avg Detection</div>
+      <div class="mixed-score-val" id="mixedAvgDR">—</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px">across completed runs</div>
+    </div>
+    <div class="mixed-runs-table">
+      <table>
+        <thead><tr>
+          <th>Run</th><th>Fault</th><th>Intro t=</th><th>First Detect</th><th>DR</th><th>Status</th>
+        </tr></thead>
+        <tbody id="mixedTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── If opened as file://, redirect to Flask server so CORS is never an issue ── */
+if (location.protocol === 'file:') { location.replace('http://localhost:5000'); }
+
+/* ══════════════════════════════════════════════════════════
+   CONSTANTS
+══════════════════════════════════════════════════════════ */
+const SRV = ''; // Relative URLs — page is always served by Flask at http://localhost:5000
+const ARC  = 245; // π × 78 ≈ 245  (gauge arc length for r=78)
+
+const FI = {
+  0:  { n:'Normal Operation',          s:'Normal',          c:'#1FD490', cat:'none',    d:'Plant operating normally with no faults present.' },
+  1:  { n:'Feed Ratio Disruption',     s:'F01 · Feed Ratio',c:'#FF4D5E', cat:'Step',    d:'The A/C reactant feed ratio changed suddenly — the reactor is receiving the wrong mixture of chemicals.' },
+  2:  { n:'Chemical Composition Shift',s:'F02 · Composition',c:'#FF4D5E',cat:'Step',   d:'The chemical composition of reactant B changed unexpectedly, throwing off the reaction balance.' },
+  3:  { n:'Feed D Temp. Step',         s:'F03 · Temp Step', c:'#F97316', cat:'Step',    d:'⚠ This fault is known to be nearly impossible to detect — a known blind spot in the sensor layout.' },
+  4:  { n:'Reactor Cooling Problem',   s:'F04 · Reactor',   c:'#FF4D5E', cat:'Step',    d:'Cooling water temperature entering the reactor changed, causing the reactor temperature to drift dangerously.' },
+  5:  { n:'Condenser Cooling Problem', s:'F05 · Condenser', c:'#FF4D5E', cat:'Step',    d:'A sudden change in condenser cooling water temperature is disrupting the heat exchange process.' },
+  6:  { n:'Feed Supply Loss',          s:'F06 · Feed Loss', c:'#FF4D5E', cat:'Step',    d:'The supply of reactant A to the plant was suddenly cut off — a critical feed stream failure.' },
+  7:  { n:'Pressure Spike',            s:'F07 · Pressure',  c:'#FF4D5E', cat:'Step',    d:'Pressure in the C header increased suddenly, indicating a blockage or valve failure downstream.' },
+  8:  { n:'Composition Noise',         s:'F08 · Comp. Noise',c:'#FF4D5E',cat:'Random',  d:'Random variation in A, B, C composition measurements — possibly a sensor malfunction or mixing irregularity.' },
+  9:  { n:'Feed Temp Noise (C)',       s:'F09 · Temp Noise',c:'#F97316', cat:'Random',  d:'⚠ Random temperature variation — this is another known blind spot that is very difficult to detect.' },
+  10: { n:'C Feed Temperature Noise',  s:'F10 · Temp Noise',c:'#FF4D5E', cat:'Random',  d:'Random variation in the C feed stream temperature is making the reactor inlet conditions unstable.' },
+  11: { n:'Reactor Cooling Noise',     s:'F11 · RX Noise',  c:'#FF4D5E', cat:'Random',  d:'Random fluctuation in reactor cooling water temperature is causing thermal instability.' },
+  12: { n:'Condenser Cooling Noise',   s:'F12 · Cond. Noise',c:'#FF4D5E',cat:'Random',  d:'Random fluctuation in condenser cooling water temperature is reducing separation efficiency.' },
+  13: { n:'Slow Reaction Drift',       s:'F13 · Kinetics',  c:'#FF4D5E', cat:'Slow Drift',d:'The reaction kinetics are drifting slowly — the reaction rate is gradually shifting from normal values.' },
+  14: { n:'Cooling Valve Stuck',       s:'F14 · Valve Stuck',c:'#FF4D5E',cat:'Sticking', d:'The reactor cooling water valve is stuck — the plant has lost the ability to control reactor temperature.' },
+  15: { n:'Condenser Valve Stuck',     s:'F15 · Valve Stuck',c:'#F97316',cat:'Sticking', d:'⚠ Condenser valve stuck — another known blind spot that is very difficult to detect.' },
+  16: { n:'Unknown Fault A',           s:'F16 · Unknown',   c:'#A78BFA', cat:'Unknown',  d:'An unclassified fault of unknown physical origin. The AI still catches it by recognising unusual sensor patterns.' },
+  17: { n:'Unknown Fault B',           s:'F17 · Unknown',   c:'#A78BFA', cat:'Unknown',  d:'An unclassified fault of unknown physical origin. The AI still catches it by recognising unusual sensor patterns.' },
+  18: { n:'Unknown Fault C',           s:'F18 · Unknown',   c:'#A78BFA', cat:'Unknown',  d:'An unclassified fault of unknown physical origin. The AI still catches it by recognising unusual sensor patterns.' },
+  19: { n:'Unknown Fault D',           s:'F19 · Unknown',   c:'#A78BFA', cat:'Unknown',  d:'An unclassified fault of unknown physical origin. The AI still catches it by recognising unusual sensor patterns.' },
+  20: { n:'Unknown Fault E',           s:'F20 · Unknown',   c:'#A78BFA', cat:'Unknown',  d:'An unclassified fault of unknown physical origin. The AI still catches it by recognising unusual sensor patterns.' },
+};
+
+/* ══════════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════════ */
+const S = {
+  ok: false, phase: 'idle', data: null,
+  frame: 0, speed: 5, tid: null,
+  alarmFired: false, alarmAt: -1,
+  // mode: 'normal' | 'mixed' | 'blind'
+  mode: 'normal',
+  // blind mode (legacy compat)
+  blindMode:   false,
+  blindRuns:   [],
+  blindHasKey: false,
+  blindScore:  { correct: 0, total: 0, rows: [] },
+  blindCurrentRun: null,
+  blindRevealed: false,
+  // mixed timing mode
+  mixedMode:       false,
+  mixedRuns:       [],
+  mixedRunInfo:    {},   // {run_id: {fault, fault_intro, total_samples}}
+  mixedCurrentRun: null,
+  mixedScore:      { totalDR: 0, count: 0, rows: [] },
+};
+
+/* ══════════════════════════════════════════════════════════
+   DOM
+══════════════════════════════════════════════════════════ */
+const el = id => document.getElementById(id);
+const connBadge = el('connBadge');
+const faultSel  = el('faultSel');
+const runIn     = el('runIn');
+const playBtn   = el('playBtn');
+const progFill  = el('progFill');
+const progTime  = el('progTime');
+const statusCard= el('statusCard');
+const gFill     = el('gFill');
+const gVal      = el('gVal');
+const statusPill= el('statusPill');
+const predName  = el('predName');
+const predConf  = el('predConf');
+const probList  = el('probList');
+const detectBox = el('detectBox');
+const detectBody= el('detectBody');
+const strip     = el('strip');
+const chart     = el('chart');
+const ctx       = chart.getContext('2d');
+const flasher   = el('flasher');
+// mode tabs
+const modeTabNormal = el('modeTabNormal');
+const modeTabMixed  = el('modeTabMixed');
+const modeTabBlind  = el('modeTabBlind');
+// control groups
+const normalCtrl    = el('normalModeCtrl');
+const normalRunCtrl = el('normalRunCtrl');
+const mixedCtrl     = el('mixedModeCtrl');
+const blindCtrl     = el('blindModeCtrl');
+// mixed mode DOM
+const mixedRunIn    = el('mixedRunIn');
+const mixedRunHint  = el('mixedRunHint');
+const mixedRunChip  = el('mixedRunChip');
+const mixedInfoBar  = el('mixedInfoBar');
+const mixedFaultName= el('mixedFaultName');
+const mixedFaultNum = el('mixedFaultNum');
+const mixedIntroTime= el('mixedIntroTime');
+const mixedTotalHours=el('mixedTotalHours');
+const mixedStrip    = el('mixedStrip');
+const mixedAvgDR    = el('mixedAvgDR');
+const mixedTableBody= el('mixedTableBody');
+// blind mode DOM
+const blindRunIn   = el('blindRunIn');
+const blindRunHint = el('blindRunHint');
+const revealBtn    = el('revealBtn');
+const revealPanel  = el('revealPanel');
+const revealContent= el('revealContent');
+const blindStrip   = el('blindStrip');
+const blindScoreVal= el('blindScoreVal');
+const blindAccVal  = el('blindAccVal');
+const blindTableBody= el('blindTableBody');
+
+/* ══════════════════════════════════════════════════════════
+   SERVER
+══════════════════════════════════════════════════════════ */
+async function connectServer(isRetry = false) {
+  if (!isRetry) setBadge('warn','CONNECTING',true);
+  try {
+    const r = await fetch(`${SRV}/api/status`, { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw 0;
+    const d = await r.json();
+    S.ok = true;
+    setBadge('ok','SERVER LIVE',true);
+    buildFaultMenu(d.faults || []);
+    runIn.max = (d.runs || []).length || 500;
+
+    // Blind mode — read blind_runs from /api/status response
+    {
+      const bRuns = Array.isArray(d.blind_runs) ? d.blind_runs : [];
+      S.blindRuns   = bRuns;
+      S.blindHasKey = !!d.blind_has_key;
+      if (bRuns.length > 0) {
+        blindRunIn.max = bRuns.length;
+        blindRunHint.textContent = '/ ' + bRuns.length;
+      }
+    }
+
+    // Mixed timing mode — read mixed info from /api/status response
+    {
+      const mRuns = Array.isArray(d.mixed_runs) ? d.mixed_runs : [];
+      S.mixedRuns    = mRuns;
+      S.mixedRunInfo = d.mixed_run_info || {};
+      if (mRuns.length > 0) {
+        mixedRunIn.max = mRuns.length;
+        mixedRunHint.textContent = '/ ' + mRuns.length;
+        modeTabMixed.style.opacity = '1';
+        modeTabMixed.title = `Random Timing: ${mRuns.length} runs with variable fault intro times`;
+      } else {
+        modeTabMixed.style.opacity = '0.55';
+        modeTabMixed.title = 'Run create_mixed_test_dataset.py to enable this mode';
+      }
+    }
+
+    // Re-apply current mode UI now that we have data
+    if (S.mode === 'mixed') applyMixedModeUI(S.mixedRuns.length);
+    else if (S.mode === 'blind') {
+      if (S.blindRuns.length > 0 && S.phase === 'idle') {
+        setStatus('idle','🎯','BLIND TEST MODE',
+          'Pick a run number (1–' + S.blindRuns.length + ') and press Start','');
+        playBtn.disabled = false;
+      }
+    } else if (isRetry) {
+      strip.innerHTML = `<div class="strip-icon">ℹ️</div>
+        <div class="strip-body"><p>Server connected. Select a fault scenario above and press Start.</p></div>`;
+    }
+  } catch {
+    S.ok = false;
+    setBadge('warn','WAITING FOR SERVER',true);
+    if (!isRetry) {
+      strip.innerHTML = `<div class="strip-icon">⏳</div><div class="strip-body">
+        <p><strong style="color:var(--amber)">Server not running yet.</strong>
+        The dashboard will connect automatically once it is ready — no need to refresh. Or start it now:</p>
+        <p style="margin-top:8px;font-family:var(--font-mono);font-size:12px;color:var(--amber);background:var(--s2);padding:8px 12px;border-radius:6px;display:inline-block">
+        python tep_server_v5_blind.py</p>
+        <p style="margin-top:8px;font-size:11px;color:var(--dim)">Retrying every 5 seconds…</p>
+        </div>`;
+    }
+    // Auto-retry every 5 seconds until server responds
+    setTimeout(() => connectServer(true), 5000);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   MODE SWITCHING — 3 tabs: normal / mixed / blind
+══════════════════════════════════════════════════════════ */
+function applyModeTabUI(mode) {
+  // Update tab active classes
+  modeTabNormal.className = 'mode-tab' + (mode === 'normal' ? ' active-normal' : '');
+  modeTabMixed.className  = 'mode-tab' + (mode === 'mixed'  ? ' active-mixed'  : '');
+  modeTabBlind.className  = 'mode-tab' + (mode === 'blind'  ? ' active-blind'  : '');
+
+  // Show/hide control groups
+  normalCtrl.style.display    = mode === 'normal' ? 'flex' : 'none';
+  normalRunCtrl.style.display = mode === 'normal' ? 'flex' : 'none';
+  mixedCtrl.style.display     = mode === 'mixed'  ? 'flex' : 'none';
+  blindCtrl.style.display     = mode === 'blind'  ? 'flex' : 'none';
+
+  // Body class for accent color recoloring
+  document.body.classList.toggle('mixed-active', mode === 'mixed');
+  document.body.classList.toggle('blind-active', mode === 'blind');
+
+  // Mixed info bar
+  mixedInfoBar.className = mode === 'mixed' ? 'mixed-info-bar show' : 'mixed-info-bar';
+
+  // Scoreboards
+  if (mode !== 'blind') { revealBtn.classList.remove('show'); revealPanel.classList.remove('show'); }
+  if (mode !== 'blind' && S.blindScore.total === 0) blindStrip.classList.remove('show');
+  if (mode !== 'mixed' && S.mixedScore.count === 0) mixedStrip.classList.remove('show');
+  if (mode === 'blind' && S.blindScore.total > 0)  blindStrip.classList.add('show');
+  if (mode === 'mixed' && S.mixedScore.count > 0)  mixedStrip.classList.add('show');
+}
+
+function switchMode(newMode) {
+  if (newMode === S.mode) return;
+  clearInterval(S.tid);
+
+  // Reset per-run state
+  S.frame = 0; S.alarmFired = false; S.alarmAt = -1; S.data = null;
+  S.phase = 'idle'; S.blindCurrentRun = null; S.blindRevealed = false;
+  S.mixedCurrentRun = null;
+
+  S.mode      = newMode;
+  S.blindMode = (newMode === 'blind');
+  S.mixedMode = (newMode === 'mixed');
+
+  applyModeTabUI(newMode);
+  resetUI(true);  // soft reset (preserve scoreboards)
+
+  if (newMode === 'normal') {
+    playBtn.disabled = !S.ok || !faultSel.value;
+    setStatus('idle','⏸','READY','Select a fault scenario above and press Start','');
+    strip.innerHTML = `<div class="strip-icon">ℹ️</div>
+      <div class="strip-body"><p>Select a fault scenario from the controls above.</p></div>`;
+  }
+  else if (newMode === 'mixed') {
+    // Load mixed run info if not yet fetched
+    if (S.mixedRuns.length > 0) {
+      applyMixedModeUI(S.mixedRuns.length);
+      updateMixedRunChip();
+    } else {
+      fetch(SRV + '/api/status', { signal: AbortSignal.timeout(6000) })
+        .then(r => r.json())
+        .then(d => {
+          S.mixedRuns    = Array.isArray(d.mixed_runs) ? d.mixed_runs : [];
+          S.mixedRunInfo = d.mixed_run_info || {};
+          if (S.mixedRuns.length > 0) {
+            mixedRunIn.max = S.mixedRuns.length;
+            mixedRunHint.textContent = '/ ' + S.mixedRuns.length;
+          }
+          applyMixedModeUI(S.mixedRuns.length);
+          updateMixedRunChip();
+        })
+        .catch(() => applyMixedModeUI(0));
+    }
+  }
+  else if (newMode === 'blind') {
+    if (S.blindRuns.length > 0) {
+      applyBlindModeUI(S.blindRuns.length);
+    } else {
+      fetch(SRV + '/api/status', { signal: AbortSignal.timeout(6000) })
+        .then(r => r.json())
+        .then(d => {
+          S.blindRuns   = Array.isArray(d.blind_runs) ? d.blind_runs : [];
+          S.blindHasKey = !!d.blind_has_key;
+          if (S.blindRuns.length > 0) {
+            blindRunIn.max = S.blindRuns.length;
+            blindRunHint.textContent = '/ ' + S.blindRuns.length;
+          }
+          applyBlindModeUI(S.blindRuns.length);
+        })
+        .catch(() => applyBlindModeUI(0));
+    }
+  }
+}
+
+// Legacy compat — keep toggleMode for blind only (not called externally anymore)
+function toggleMode() { switchMode(S.mode === 'blind' ? 'normal' : 'blind'); }
+
+/* ══════════════════════════════════════════════════════════
+   MIXED TIMING MODE — helpers
+══════════════════════════════════════════════════════════ */
+function applyMixedModeUI(nRuns) {
+  const n = nRuns || 0;
+  setStatus('idle','🎲','RANDOM TIMING MODE',
+    n > 0 ? `Pick a run (1–${n}) — fault injected at a random time, not t=160`
+           : 'Dataset not ready — run create_mixed_test_dataset.py','');
+  mixedRunIn.max = n || 153;
+  mixedRunHint.textContent = `/ ${n || '?'}`;
+
+  if (n > 0) {
+    strip.innerHTML = `<div class="strip-icon" style="color:var(--mixed)">🎲</div>
+      <div class="strip-body">
+        <p><strong style="color:var(--mixed)">Random Timing Mode active.</strong>
+           ${n} runs across 17 fault types — each with the fault introduced at a different
+           random time (t = 50, 68, 100, 130, 160, 200, 250, 300, or 400).</p>
+        <p style="margin-top:5px;font-size:12px;color:var(--dim)">
+          The yellow info bar above shows the fault type and exact injection time for the
+          selected run. Press <strong>START</strong> and watch whether the AI catches it
+          regardless of <em>when</em> the fault was introduced.</p>
+      </div>`;
+    playBtn.disabled = false;
+    mixedStrip.classList.add('show');
+  } else {
+    strip.innerHTML = `<div class="strip-icon">⚠️</div>
+      <div class="strip-body">
+        <p><strong style="color:var(--amber)">Mixed timing dataset not generated yet.</strong></p>
+        <p style="margin-top:6px;font-size:12px;color:var(--muted)">
+          Run <code style="color:var(--amber);background:var(--s2);padding:2px 6px;border-radius:3px">python create_mixed_test_dataset.py</code>
+          then restart the server.</p>
+      </div>`;
+    playBtn.disabled = true;
+  }
+}
+
+function updateMixedRunChip() {
+  const run  = parseInt(mixedRunIn.value) || 1;
+  const info = S.mixedRunInfo[run];
+  if (!info) { mixedRunChip.classList.remove('show'); return; }
+  const fi   = FI[info.fault] || { s: `F${info.fault}`, c: '#FB923C' };
+  const hrs  = (info.fault_intro * 3 / 60).toFixed(1);
+  mixedRunChip.textContent = `F${String(info.fault).padStart(2,'0')} · t=${info.fault_intro} (${hrs}h)`;
+  mixedRunChip.style.color = fi.c || 'var(--mixed)';
+  mixedRunChip.classList.add('show');
+
+  // Update info bar
+  mixedFaultName.textContent  = fi.n || `Fault ${info.fault}`;
+  mixedFaultName.style.color  = fi.c || 'var(--mixed)';
+  mixedFaultNum.textContent   = `F${String(info.fault).padStart(2,'0')}`;
+  mixedFaultNum.style.color   = fi.c || 'var(--mixed)';
+  mixedIntroTime.innerHTML    = `⏱ t = ${info.fault_intro} <span style="color:var(--muted);font-size:10px">(${hrs}h into sim)</span>`;
+  const totalH = (info.total_samples * 3 / 60).toFixed(1);
+  mixedTotalHours.textContent = `${totalH}h`;
+}
+
+/* ══════════════════════════════════════════════════════════
+   MIXED TIMING MODE — load and start a run
+══════════════════════════════════════════════════════════ */
+async function loadAndStartMixed() {
+  const run = parseInt(mixedRunIn.value) || 1;
+  if (!S.ok) return;
+
+  const info = S.mixedRunInfo[run];
+  if (!info) { strip.innerHTML = `<div class="strip-icon">❌</div><div class="strip-body"><p style="color:var(--red)">Run ${run} not found in metadata. Make sure the dataset is loaded.</p></div>`; return; }
+
+  const finfo = FI[info.fault] || { n: `Fault ${info.fault}`, c: '#FB923C' };
+  const hrs   = (info.fault_intro * 3 / 60).toFixed(1);
+
+  resetUI();
+  setBtn('loading');
+  S.phase = 'loading';
+  S.mixedCurrentRun = run;
+
+  strip.innerHTML = `<div class="strip-icon" style="color:var(--mixed)">⏳</div>
+    <div class="strip-body">
+      <p>Loading <strong style="color:var(--mixed)">Mixed Run #${run}</strong> —
+         <strong style="color:${finfo.c}">${finfo.n}</strong>,
+         fault at t=${info.fault_intro} (~${hrs}h)…</p>
+    </div>`;
+
+  try {
+    const res = await fetch(`${SRV}/api/mixed/run/${run}`);
+    if (!res.ok) throw new Error('bad response');
+    S.data = await res.json();
+  } catch {
+    strip.innerHTML = `<div class="strip-icon">❌</div><div class="strip-body">
+      <p style="color:var(--red)">Failed to load mixed run ${run}. Make sure the server is running and the dataset is loaded.</p></div>`;
+    setBtn('play'); S.phase = 'idle'; return;
+  }
+
+  const totalH = (S.data.n_samples * 3 / 60).toFixed(1);
+  strip.innerHTML = `<div class="strip-icon" style="color:${finfo.c}">⚠</div>
+    <div class="strip-body">
+      <p><strong style="color:${finfo.c}">Mixed Run #${run} · ${finfo.n}</strong>
+         &nbsp;·&nbsp; <span style="color:var(--muted);font-size:12px">${finfo.cat || 'Unknown'} fault</span></p>
+      <p style="margin-top:4px;color:var(--muted);font-size:12px">${finfo.d || ''}</p>
+      <p style="margin-top:6px;font-size:11px;">
+        Fault injected at <strong style="color:var(--amber)">t = ${info.fault_intro} (~${hrs}h)</strong>
+        instead of the usual 8h mark.
+        Total run: <strong style="color:var(--text)">${totalH}h</strong>.
+        The model was <em>not trained</em> to expect this timing — watch if it detects by signal alone.
+      </p>
+    </div>`;
+
+  initChart(); drawChart(0);
+  setStatus('normal','✅','OPERATING NORMALLY',`Mixed run started — fault will arrive at ${hrs}h, not the usual 8h`,'normal');
+  setGauge(100, '#1FD490');
+  gVal.textContent = '100%';
+  setBtn('pause');
+  S.phase = 'playing';
+  S.tid   = setInterval(tick, 33);
+}
+
+/* ══════════════════════════════════════════════════════════
+   MIXED TIMING MODE — finish run
+══════════════════════════════════════════════════════════ */
+function finishMixedRun(d) {
+  const info   = S.mixedRunInfo[S.mixedCurrentRun] || {};
+  const finfo  = FI[d.fault] || { n: `Fault ${d.fault}`, c: '#FB923C' };
+  const minfo  = FI[d.stats.majority_class] || finfo;
+  const fd     = d.stats.first_detection;
+  const samplesAfterIntro = fd ? fd - d.fault_intro : null;
+  const minsAfterIntro    = samplesAfterIntro !== null ? samplesAfterIntro * 3 : null;
+  const hrs    = (d.fault_intro * 3 / 60).toFixed(1);
+  const dr     = d.stats.detection_rate;
+  const correct = d.stats.majority_class === d.fault;
+
+  strip.innerHTML = `<div class="strip-icon">${fd ? '✅' : '⚠️'}</div>
+    <div class="strip-body">
+      <p><strong>Mixed Run #${S.mixedCurrentRun} complete.</strong>
+         Fault: <strong style="color:${finfo.c}">${finfo.n}</strong> introduced at
+         <strong style="color:var(--amber)">t = ${d.fault_intro} (~${hrs}h)</strong>.</p>
+      <p style="margin-top:4px;font-size:12px;color:var(--muted)">
+        ${fd
+          ? `✅ AI detected ${samplesAfterIntro} samples (${minsAfterIntro} min) after fault injection.
+             DR = <strong style="color:var(--green)">${dr}%</strong>.
+             Classified as <strong style="color:${minfo.c}">${minfo.n}</strong>
+             ${correct ? '✓' : `(actual: ${finfo.n})`}.`
+          : `❌ Fault not detected in this run.`
+        }
+      </p>
+    </div>`;
+
+  // Update mixed scoreboard
+  S.mixedScore.totalDR += dr;
+  S.mixedScore.count++;
+  S.mixedScore.rows.push({
+    run:    S.mixedCurrentRun,
+    fault:  d.fault,
+    fName:  finfo.n,
+    intro:  d.fault_intro,
+    fd:     samplesAfterIntro,
+    dr,
+    detected: !!fd,
+  });
+  updateMixedScoreboard();
+}
+
+function updateMixedScoreboard() {
+  const { totalDR, count, rows } = S.mixedScore;
+  const avg = count ? (totalDR / count).toFixed(1) : '—';
+  mixedAvgDR.textContent = count ? `${avg}%` : '—';
+  mixedStrip.classList.add('show');
+
+  mixedTableBody.innerHTML = rows.slice(-8).reverse().map(r => {
+    const finfo = FI[r.fault] || { s: `F${r.fault}`, c: '#FB923C' };
+    const delayStr = r.fd !== null && r.fd !== undefined ? `+${r.fd * 3}m` : 'Missed';
+    const delayCls = r.fd !== null && r.fd !== undefined ? 'ti' : 'ms';
+    return `<tr>
+      <td>#${r.run}</td>
+      <td style="color:${finfo.c}">F${String(r.fault).padStart(2,'0')}</td>
+      <td>t=${r.intro}</td>
+      <td class="${delayCls}">${delayStr}</td>
+      <td class="${r.dr >= 90 ? 'cd' : r.dr >= 70 ? 'ti' : 'ms'}">${r.dr}%</td>
+      <td class="${r.detected ? 'cd' : 'ms'}">${r.detected ? '✓' : '✗'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════════════
+   BLIND MODE — toggle helper (kept for applyBlindModeUI)
+══════════════════════════════════════════════════════════ */
+function applyBlindModeUI(nRuns) {
+  /* Called once we know nRuns (may be 0 if dataset missing). */
+  const n = nRuns || 0;
+  setStatus('idle','🎯','BLIND TEST MODE',
+    n > 0 ? `Pick a run number (1–${n}) and press Start`
+           : 'Dataset not ready — see instructions below','');
+  blindRunIn.max = n || 40;
+  blindRunHint.textContent = `/ ${n || '?'}`;
+
+  if (n > 0) {
+    strip.innerHTML = `<div class="strip-icon" style="color:var(--blind)">🎯</div>
+      <div class="strip-body">
+        <p><strong style="color:var(--blind)">Blind Test Mode active.</strong>
+           ${n} shuffled runs ready — 2 from each of the 20 fault types.
+           Run numbers reveal nothing. Can the AI identify each fault?</p>
+        <p style="margin-top:5px;font-size:12px;color:var(--dim)">
+          Pick a run number (1–${n}) and press <strong>START</strong>.
+          After the run completes, press <strong style="color:var(--blind)">🔍 Reveal True Fault</strong> to score it.
+        </p>
+      </div>`;
+    playBtn.disabled = false;
+  } else {
+    strip.innerHTML = `<div class="strip-icon">⚠️</div>
+      <div class="strip-body">
+        <p><strong style="color:var(--amber)">Blind dataset not generated yet.</strong></p>
+        <p style="margin-top:6px;font-size:12px;color:var(--muted)">
+          Run <code style="color:var(--amber);background:var(--s2);padding:2px 6px;border-radius:3px">python create_mixed_dataset.py</code>
+          in the same folder as the server, then restart the server.</p>
+      </div>`;
+    playBtn.disabled = true;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   BLIND MODE — load and start a blind run
+══════════════════════════════════════════════════════════ */
+async function loadAndStartBlind() {
+  const run = parseInt(blindRunIn.value) || 1;
+  if (!S.ok) return;
+
+  resetUI();
+  setBtn('loading');
+  S.phase = 'loading';
+  S.blindCurrentRun = run;
+  S.blindRevealed   = false;
+  revealBtn.classList.remove('show');
+  revealPanel.classList.remove('show');
+
+  strip.innerHTML = `<div class="strip-icon" style="color:var(--blind)">⏳</div>
+    <div class="strip-body">
+      <p>Loading <strong style="color:var(--blind)">Blind Run #${run}</strong>…
+         True fault is hidden — the AI will analyse this run cold.</p>
+    </div>`;
+
+  try {
+    const res = await fetch(`${SRV}/api/blind/run/${run}`);
+    if (!res.ok) throw new Error('bad response');
+    S.data = await res.json();
+  } catch {
+    strip.innerHTML = `<div class="strip-icon">❌</div><div class="strip-body">
+      <p style="color:var(--red)">Failed to load blind run ${run}.
+         Make sure the server is running and the blind dataset is loaded.</p></div>`;
+    setBtn('play'); S.phase = 'idle'; return;
+  }
+
+  strip.innerHTML = `<div class="strip-icon" style="color:var(--blind)">🎯</div>
+    <div class="strip-body">
+      <p><strong style="color:var(--blind)">Blind Run #${run}</strong>
+         &nbsp;·&nbsp; <span style="color:var(--muted);font-size:12px">True fault hidden — can the AI figure it out?</span></p>
+      <p style="margin-top:4px;color:var(--muted);font-size:12px">
+        The fault is injected at the <strong style="color:var(--amber)">8-hour mark</strong>.
+        Watch the AI signal rise and see what it classifies this as.
+        Click <strong style="color:var(--blind)">Reveal</strong> after the run to check.
+      </p>
+    </div>`;
+
+  initChart(); drawChart(0);
+  setStatus('normal','✅','OPERATING NORMALLY','Blind run started — fault not yet active','normal');
+  setGauge(100, '#1FD490');
+  gVal.textContent = '100%';
+  setBtn('pause');
+  S.phase   = 'playing';
+  S.tid     = setInterval(tick, 33);
+}
+
+/* ══════════════════════════════════════════════════════════
+   BLIND MODE — finish run  (called from finishRun() supplement)
+══════════════════════════════════════════════════════════ */
+function finishBlindRun(d) {
+  const mc   = d.stats.majority_class;
+  const info = FI[mc] || { n:`Fault ${mc}`, c:'#FF4D5E' };
+
+  strip.innerHTML = `<div class="strip-icon">🤖</div>
+    <div class="strip-body">
+      <p><strong>Blind Run #${S.blindCurrentRun} complete.</strong>
+         The AI's verdict: <strong style="color:${info.c}">${mc === 0 ? 'Normal (no fault)' : info.n}</strong>
+         &nbsp;(${Math.round((d.stats.detection_rate))}% detection rate)</p>
+      <p style="margin-top:5px;font-size:12px;color:var(--dim)">
+        Click <strong style="color:var(--blind)">🔍 Reveal True Fault</strong> below to see if the AI was right.
+      </p>
+    </div>`;
+
+  // Show reveal button
+  if (S.blindHasKey) {
+    revealBtn.classList.add('show');
+  } else {
+    revealPanel.classList.add('show');
+    revealContent.innerHTML = `<span style="color:var(--muted)">
+      Answer key not loaded on server — cannot reveal true fault.<br>
+      The AI guessed: <strong style="color:${info.c}">${info.n}</strong>
+    </span>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   BLIND MODE — reveal true fault
+══════════════════════════════════════════════════════════ */
+async function revealTrueFault() {
+  if (S.blindRevealed || !S.blindCurrentRun) return;
+  S.blindRevealed = true;
+  revealBtn.classList.remove('show');
+
+  try {
+    const res  = await fetch(`${SRV}/api/blind/reveal/${S.blindCurrentRun}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      revealPanel.classList.add('show');
+      revealContent.innerHTML = `<span style="color:var(--red)">${data.error || 'Reveal failed'}</span>`;
+      return;
+    }
+
+    const trueFault  = data.true_fault;
+    const aiGuess    = S.data ? S.data.stats.majority_class : null;
+    const correct    = (aiGuess === trueFault);
+    const trueInfo   = FI[trueFault] || { n:`Fault ${trueFault}`, c:'#FF4D5E' };
+    const guessInfo  = FI[aiGuess]   || { n:`Fault ${aiGuess}`,  c:'#FF4D5E' };
+
+    revealPanel.classList.add('show');
+    revealContent.innerHTML = `
+      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
+        <div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">True Fault</div>
+          <div style="font-family:var(--font-data);font-size:18px;font-weight:700;color:${trueInfo.c}">
+            F${String(trueFault).padStart(2,'0')} · ${trueInfo.n}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">AI Guessed</div>
+          <div style="font-family:var(--font-data);font-size:18px;font-weight:700;color:${guessInfo.c}">
+            F${String(aiGuess).padStart(2,'0')} · ${guessInfo.n}
+          </div>
+        </div>
+        <div style="align-self:center">
+          <div style="font-family:var(--font-data);font-size:22px;font-weight:700;color:${correct?'var(--green)':'var(--red)'}">
+            ${correct ? '✅ CORRECT!' : '❌ WRONG'}
+          </div>
+        </div>
+      </div>`;
+
+    // Update scoreboard
+    S.blindScore.total++;
+    if (correct) S.blindScore.correct++;
+    S.blindScore.rows.push({
+      run: S.blindCurrentRun,
+      guess: aiGuess,
+      guessName: guessInfo.n,
+      true: trueFault,
+      trueName: trueInfo.n,
+      correct,
+    });
+    updateBlindScoreboard();
+
+  } catch (e) {
+    revealPanel.classList.add('show');
+    revealContent.innerHTML = `<span style="color:var(--red)">Reveal request failed.</span>`;
+  }
+}
+
+function updateBlindScoreboard() {
+  const { correct, total, rows } = S.blindScore;
+  const acc = total ? Math.round(correct / total * 100) : 0;
+  blindScoreVal.textContent = `${correct} / ${total}`;
+  blindAccVal.textContent   = total ? `${acc}% accuracy` : '—';
+  blindStrip.classList.add('show');
+
+  blindTableBody.innerHTML = rows.slice(-10).reverse().map(r => `
+    <tr>
+      <td>#${r.run}</td>
+      <td class="${r.correct?'cr':'wr'}">F${String(r.guess).padStart(2,'0')} · ${r.guessName.slice(0,18)}</td>
+      <td>F${String(r.true).padStart(2,'0')} · ${r.trueName.slice(0,18)}</td>
+      <td class="${r.correct?'cr':'wr'}">${r.correct?'✓ Correct':'✗ Wrong'}</td>
+    </tr>`).join('');
+}
+
+function setBadge(cls, text, pulse) {
+  connBadge.className = `badge ${cls}`;
+  el('connText').textContent = text;
+  el('connDot').className = `badge-dot${pulse?' pulse':''}`;
+  // Enable play only when connected and mode-appropriate selection is made
+  if (S.mode === 'normal') playBtn.disabled = !S.ok || !faultSel.value;
+  else if (S.mode === 'mixed') playBtn.disabled = !S.ok || S.mixedRuns.length === 0;
+  else if (S.mode === 'blind') playBtn.disabled = !S.ok || S.blindRuns.length === 0;
+}
+
+function buildFaultMenu(faults) {
+  faultSel.innerHTML = '<option value="">— Pick a fault to test —</option>';
+  faults.forEach(f => {
+    if (f === 0) return;
+    const info = FI[f] || { n:`Fault ${f}`, cat:'?' };
+    const hard = [3,9,15].includes(f) ? ' ⚠' : '';
+    const o = document.createElement('option');
+    o.value = f;
+    o.textContent = `F${String(f).padStart(2,'0')} · ${info.n}${hard}`;
+    faultSel.appendChild(o);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   CANVAS CHART
+══════════════════════════════════════════════════════════ */
+let CW, CH, CM;
+
+function initChart() {
+  const dpr = window.devicePixelRatio || 1;
+  const box = chart.parentElement.getBoundingClientRect();
+  CW = box.width - 40;
+  CH = 210;
+  chart.width  = CW * dpr;
+  chart.height = CH * dpr;
+  chart.style.width  = CW + 'px';
+  chart.style.height = CH + 'px';
+  ctx.scale(dpr, dpr);
+  CM = { t:16, r:18, b:38, l:46 };
+}
+
+function sx(s, T) { return CM.l + ((s / (T-1)) * (CW - CM.l - CM.r)); }
+function py(p)    { const h = CH - CM.t - CM.b; return CM.t + (1 - Math.max(0,Math.min(1,p))) * h; }
+
+function drawChart(upto) {
+  ctx.clearRect(0, 0, CW, CH);
+  ctx.fillStyle = '#0E1420'; ctx.fillRect(0, 0, CW, CH);
+
+  if (!S.data) {
+    ctx.fillStyle = '#253047'; ctx.font = '12px "Source Sans 3",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Chart will appear here once a simulation is running', CW/2, CH/2);
+    return;
+  }
+
+  const d = S.data;
+  const T = d.n_samples;
+  const pf = d.p_fault;
+  const alarms = d.confirmed_alarms;
+  const fi = d.fault_intro;
+  const dW = CW - CM.l - CM.r;
+  const dH = CH - CM.t - CM.b;
+
+  // Zone backgrounds
+  const fX = sx(fi, T);
+  ctx.fillStyle = 'rgba(31,212,144,.05)';
+  ctx.fillRect(CM.l, CM.t, fX - CM.l, dH);
+  ctx.fillStyle = 'rgba(255,77,94,.04)';
+  ctx.fillRect(fX, CM.t, CM.l + dW - fX, dH);
+
+  // Grid lines & Y labels
+  ctx.lineWidth = 0.5;
+  ctx.font = '10px "JetBrains Mono",monospace';
+  [0.25, 0.5, 0.75, 1.0].forEach(v => {
+    const yp = py(v);
+    ctx.strokeStyle = '#1C2840';
+    ctx.beginPath(); ctx.moveTo(CM.l, yp); ctx.lineTo(CM.l + dW, yp); ctx.stroke();
+    ctx.fillStyle = '#3D4F6A'; ctx.textAlign = 'right';
+    ctx.fillText(`${Math.round(v*100)}%`, CM.l - 6, yp + 3);
+  });
+  ctx.strokeStyle = '#1C2840'; ctx.beginPath();
+  ctx.moveTo(CM.l, py(0)); ctx.lineTo(CM.l + dW, py(0)); ctx.stroke();
+
+  // Fault injection dashed line
+  ctx.save();
+  ctx.strokeStyle = 'rgba(245,166,35,.7)'; ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(fX, CM.t); ctx.lineTo(fX, CM.t + dH); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = 'rgba(245,166,35,.8)'; ctx.font = '10px "Source Sans 3",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('fault injected', fX, CM.t - 3);
+
+  // X axis hour labels — dynamic based on actual run length
+  const totalSamples = T;
+  const totalHours   = Math.round(totalSamples * 3 / 60);  // 960→48h, 850→42h etc.
+  const hourStep     = totalHours <= 32 ? 4 : totalHours <= 44 ? 6 : 8;
+  ctx.fillStyle = '#3D4F6A'; ctx.font = '10px "JetBrains Mono",monospace';
+  for (let hr = 0; hr <= totalHours; hr += hourStep) {
+    const samp = Math.round(hr * 60 / 3);
+    if (samp >= T) break;
+    const x = sx(samp, T);
+    ctx.textAlign = 'center';
+    ctx.fillText(`${hr}h`, x, CM.t + dH + 18);
+  }
+  // Always label the end
+  {
+    const x = sx(T - 1, T);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${totalHours}h`, x, CM.t + dH + 18);
+  }
+
+  // Annotation: show fault_intro in hours on chart
+  {
+    const fHours = (fi * 3 / 60).toFixed(1);
+    ctx.fillStyle = 'rgba(245,166,35,.8)'; ctx.font = '10px "Source Sans 3",sans-serif';
+    ctx.textAlign = 'center';
+    // For mixed mode show the exact time; for normal show "8h mark"
+    const label = S.mixedMode ? `fault @ ${fHours}h` : 'fault injected';
+    ctx.fillText(label, fX, CM.t - 3);
+  }
+
+  // Y axis label
+  ctx.save();
+  ctx.fillStyle = '#3D4F6A'; ctx.font = '10px "Source Sans 3",sans-serif';
+  ctx.translate(13, CM.t + dH/2); ctx.rotate(-Math.PI/2);
+  ctx.textAlign = 'center'; ctx.fillText('Fault probability', 0, 0);
+  ctx.restore();
+
+  // X axis label
+  ctx.fillStyle = '#3D4F6A'; ctx.font = '10px "Source Sans 3",sans-serif';
+  ctx.textAlign = 'left'; ctx.fillText('Time →', CM.l, CM.t + dH + 30);
+
+  // Chart border
+  ctx.strokeStyle = '#253047'; ctx.lineWidth = 1;
+  ctx.strokeRect(CM.l, CM.t, dW, dH);
+
+  // ── Clip to draw area ──
+  ctx.save();
+  ctx.beginPath(); ctx.rect(CM.l, CM.t, dW, dH); ctx.clip();
+
+  const end = Math.min(upto + 1, T);
+
+  // p_fault signal line
+  if (end > 1) {
+    ctx.beginPath();
+    ctx.strokeStyle = '#F5A623'; ctx.lineWidth = 2.5;
+    ctx.moveTo(sx(0, T), py(pf[0]));
+    for (let i = 1; i < end; i++) ctx.lineTo(sx(i, T), py(pf[i]));
+    ctx.stroke();
+  }
+
+  // Alarm dots
+  ctx.fillStyle = '#FF4D5E';
+  for (let i = 0; i < end; i++) {
+    if (alarms[i] && i >= fi) {
+      ctx.beginPath(); ctx.arc(sx(i,T), py(pf[i]), 2.5, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // First detection line
+  const fd = d.stats.first_detection;
+  if (fd && fd <= end) {
+    const fdX = sx(fd - 1, T);
+    ctx.save();
+    ctx.strokeStyle = '#1FD490'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(fdX, CM.t); ctx.lineTo(fdX, CM.t + dH); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#1FD490'; ctx.font = 'bold 10px "Source Sans 3",sans-serif';
+    ctx.textAlign = (fdX > CW - 120) ? 'right' : 'left';
+    const lx = (fdX > CW - 120) ? fdX - 4 : fdX + 4;
+    ctx.fillText('✓ AI detected', lx, CM.t + 14);
+  }
+
+  // Current position cursor
+  const curX = sx(upto, T);
+  ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.lineWidth = 1;
+  ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(curX, CM.t); ctx.lineTo(curX, CM.t + dH); ctx.stroke();
+
+  ctx.restore();
+}
+function setGauge(health, color) {
+  const pct = Math.max(0, Math.min(100, health));
+  const filled = (pct / 100) * ARC;
+  gFill.style.strokeDasharray = `${filled} ${ARC}`;
+  gFill.style.stroke = color;
+  gVal.textContent = S.phase === 'idle' ? '—' : `${Math.round(pct)}%`;
+  gVal.style.fill   = color;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PROBABILITY BARS
+══════════════════════════════════════════════════════════ */
+function updateProbs(probs) {
+  const ranked = probs.map((p,i) => ({i,p})).sort((a,b) => b.p-a.p).slice(0,5);
+  const top = ranked[0];
+  const info = FI[top.i] || { n: `Fault ${top.i}`, c: '#FF4D5E' };
+  predName.textContent = top.i === 0 ? '✅  Normal operation' : `⚠  ${info.n}`;
+  predName.style.color = top.i === 0 ? '#1FD490' : info.c;
+  predConf.textContent = `Confidence: ${Math.round(top.p*100)}%  ·  top 5 of 21 classes shown`;
+  probList.innerHTML = ranked.map(({i,p}) => {
+    const inf = FI[i] || { n:`F${i}`, c:'#4D9EFF' };
+    const col = i === 0 ? '#1FD490' : inf.c;
+    const lbl = i === 0 ? 'Normal' : `F${String(i).padStart(2,'0')}`;
+    const nm  = i === 0 ? 'Normal operation' : inf.n;
+    return `<div class="prob-row">
+      <div class="prob-label" title="${nm}">${lbl} · ${nm.slice(0,12)}</div>
+      <div class="prob-track"><div class="prob-bar" style="width:${Math.round(p*100)}%;background:${col}"></div></div>
+      <div class="prob-pct">${Math.round(p*100)}%</div>
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════════════
+   STATUS PILL & CARD
+══════════════════════════════════════════════════════════ */
+function setStatus(pillCls, icon, main, sub, cardCls) {
+  statusPill.className = `status-pill ${pillCls}`;
+  statusPill.innerHTML = `<div class="pill-icon">${icon}</div>
+    <div class="pill-main">${main}</div>
+    <div class="pill-sub">${sub}</div>`;
+  statusCard.className = `status-card ${cardCls}`;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PLAYBACK
+══════════════════════════════════════════════════════════ */
+function setBtn(state) {
+  playBtn.disabled = false;
+  if (state === 'play')    { playBtn.className='btn btn-play';  playBtn.textContent='▶ START'; }
+  if (state === 'pause')   { playBtn.className='btn btn-pause'; playBtn.textContent='⏸ PAUSE'; }
+  if (state === 'resume')  { playBtn.className='btn btn-play';  playBtn.textContent='▶ RESUME'; }
+  if (state === 'again')   { playBtn.className='btn btn-again'; playBtn.textContent='↺ REPLAY'; }
+  if (state === 'loading') { playBtn.disabled = true; playBtn.textContent='⏳ LOADING…'; }
+}
+
+function resetUI(soft = false) {
+  clearInterval(S.tid); S.frame = 0; S.alarmFired = false; S.alarmAt = -1; S.data = null;
+  S.phase = 'idle';
+  setBtn('play');
+  if (!soft) {
+    setStatus('idle','⏸','READY','Press Start to run the simulation','');
+  }
+  setGauge(100, '#2D4056');
+  gVal.textContent = '—';
+  progFill.style.width = '0%'; progFill.className = 'progress-fill';
+  progTime.textContent = '0:00 / 48:00 h';
+  detectBox.className = 'detect-box';
+  predName.textContent = '—'; predName.style.color = 'var(--muted)';
+  predConf.textContent = 'Waiting for simulation…';
+  probList.innerHTML = '';
+  ['sDR','sSPD','sFAR','sDX'].forEach(id => {
+    el(id).className = 'stat';
+    el(id+'v').textContent = '—';
+    el(id+'v').className = 'stat-val';
+  });
+  el('sDRs').textContent = 'Detection rate for this run';
+  el('sSPDs').textContent = 'After fault was introduced';
+  el('sFARs').textContent = 'During normal operation';
+  el('sDXs').textContent = 'Fault type identified';
+  drawChart(0);
+}
+
+async function loadAndStart() {
+  // Route to dedicated loaders for non-normal modes
+  if (S.mode === 'blind')  { loadAndStartBlind();  return; }
+  if (S.mode === 'mixed')  { loadAndStartMixed();  return; }
+
+  const fault = parseInt(faultSel.value);
+  const run   = parseInt(runIn.value) || 1;
+  if (!fault || !S.ok) return;
+
+  resetUI();
+  setBtn('loading');
+  S.phase = 'loading';
+
+  const finfo = FI[fault] || {};
+  strip.innerHTML = `<div class="strip-icon">⏳</div><div class="strip-body">
+    <p>Loading simulation data for <strong>${finfo.n || 'Fault '+fault}</strong>… This may take a few seconds the first time.</p></div>`;
+
+  try {
+    const res = await fetch(`${SRV}/api/run/${fault}/${run}?ds=test`);
+    if (!res.ok) throw new Error('bad response');
+    S.data = await res.json();
+  } catch {
+    strip.innerHTML = `<div class="strip-icon">❌</div><div class="strip-body">
+      <p style="color:var(--red)">Failed to load data. Make sure the server is running.</p></div>`;
+    setBtn('play'); S.phase = 'idle'; return;
+  }
+
+  // Show fault info strip
+  const info = FI[fault] || { n:`Fault ${fault}`, cat:'?', d:'', c:'#FF4D5E' };
+  strip.innerHTML = `<div class="strip-icon" style="color:${info.c}">⚠</div>
+    <div class="strip-body">
+      <p><strong>Scenario: ${info.n}</strong> &nbsp;·&nbsp; <span style="color:var(--muted);font-size:12px">${info.cat} fault</span></p>
+      <p style="margin-top:4px">${info.d}</p>
+      <p style="margin-top:6px;font-size:11px;color:var(--dim)">The fault is injected at the <strong style="color:var(--amber)">8-hour mark</strong>. The plant runs normally for the first 8 hours, then the fault is introduced. Watch the AI signal rise.</p>
+    </div>`;
+
+  // Init chart with data
+  initChart(); drawChart(0);
+  setStatus('normal','✅','OPERATING NORMALLY','All 52 sensors within normal range — fault not yet active','normal');
+  setGauge(100, '#1FD490');
+  gVal.textContent = '100%';
+  setBtn('pause');
+  S.phase = 'playing';
+  S.tid = setInterval(tick, 33);
+}
+
+function tick() {
+  const d = S.data; if (!d) return;
+  const T = d.n_samples;
+  S.frame = Math.min(S.frame + S.speed, T - 1);
+  const f = S.frame;
+
+  const probs   = d.class_probs[f];
+  const pFault  = d.p_fault[f];
+  const isAlarm = d.confirmed_alarms[f];
+  const isPost  = f >= d.fault_intro;
+  const health  = Math.round((1 - pFault) * 100);
+
+  // Gauge + card state
+  if (isAlarm) {
+    const col = '#FF4D5E';
+    setGauge(Math.max(5, health), col);
+    if (!S.alarmFired) {
+      S.alarmFired = true; S.alarmAt = f;
+      onAlarm();
+    }
+  } else if (isPost) {
+    setGauge(Math.max(10, health), '#F5A623');
+    if (!S.alarmFired)
+      setStatus('search','🔍','FAULT ACTIVE — SEARCHING','AI is analysing sensor patterns…','');
+  } else {
+    setGauge(100, '#1FD490');
+    setStatus('normal','✅','OPERATING NORMALLY','All sensors nominal — fault not yet active','normal');
+  }
+
+  // Probs
+  if (probs) updateProbs(probs);
+
+  // Chart
+  drawChart(f);
+
+  // Progress — total hours varies per run
+  progFill.style.width = `${(f / (T-1)) * 100}%`;
+  const totalHoursLabel = Math.round(T * 3 / 60);
+  const hrs  = Math.floor(f * 3 / 60);
+  const mins = (f * 3) % 60;
+  progTime.textContent = `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')} / ${totalHoursLabel}:00 h`;
+
+  if (f >= T - 1) finishRun();
+}
+
+function onAlarm() {
+  const d = S.data;
+  const info = FI[d.fault] || { n:`Fault ${d.fault}`, c:'#FF4D5E' };
+  const samplesAfter = S.alarmAt - d.fault_intro;
+  const minsAfter    = samplesAfter * 3;
+
+  setStatus('fault','🚨','FAULT DETECTED!',info.n,'fault');
+  progFill.className = 'progress-fill alarmed';
+
+  flasher.className = 'flash';
+  setTimeout(() => flasher.className = '', 700);
+
+  detectBox.className = 'detect-box show';
+  detectBody.innerHTML = `Detected <strong>${samplesAfter} samples</strong> (${minsAfter} minutes) after fault injection.<br>
+    Identified as: <strong style="color:${info.c}">${info.n}</strong>`;
+}
+
+function finishRun() {
+  clearInterval(S.tid); S.phase = 'done';
+  setBtn('again');
+  const d = S.data;
+  const st = d.stats;
+  const fInfo = FI[d.fault]         || { n:`Fault ${d.fault}`, c:'#FF4D5E' };
+  const mInfo = FI[st.majority_class] || { n:`Fault ${st.majority_class}`, c:'#FF4D5E' };
+
+  // In blind mode: call the blind finish handler instead of normal strip
+  if (S.blindMode) {
+    finishBlindRun(d);
+    // Still update stats row (DR, speed, FAR, diagnosis all valid)
+  }
+
+  // In mixed mode: call the mixed finish handler
+  if (S.mixedMode) {
+    finishMixedRun(d);
+  }
+
+  // DR
+  const dr = st.detection_rate;
+  el('sDRv').textContent = `${dr}%`;
+  el('sDRv').className   = `stat-val ${dr>90?'g':dr>70?'a':'r'}`;
+  el('sDRs').textContent = `of the fault period correctly flagged`;
+  el('sDR').className    = dr > 90 ? 'stat good' : 'stat';
+
+  // Speed
+  const fd = st.first_detection;
+  if (fd) {
+    const sa = fd - d.fault_intro;
+    el('sSPDv').textContent = `+${sa*3}m`;
+    el('sSPDv').className   = 'stat-val a';
+    el('sSPDs').textContent = `${sa} samples after fault injection`;
+    el('sSPD').className    = 'stat amber';
+  } else {
+    el('sSPDv').textContent = 'Missed';
+    el('sSPDv').className   = 'stat-val r';
+    el('sSPDs').textContent = 'Fault not detected in this run';
+  }
+
+  // FAR
+  const far = st.false_alarm_rate;
+  el('sFARv').textContent = far === 0 ? 'ZERO' : `${far}%`;
+  el('sFARv').className   = `stat-val ${far===0?'g':'r'}`;
+  el('sFARs').textContent = far === 0 ? 'No false alarms during normal operation ✓' : `${far}% false alarm rate`;
+  el('sFAR').className    = far === 0 ? 'stat good' : 'stat bad';
+
+  // Diagnosis
+  const mc = st.majority_class;
+  if (mc && mc !== 0) {
+    el('sDXv').textContent = mInfo.s || `F${mc}`;
+    el('sDXv').style.color = mInfo.c || '#FF4D5E';
+    el('sDXs').textContent = mInfo.n;
+  } else {
+    el('sDXv').textContent = '—'; el('sDXv').style.color='var(--muted)';
+    el('sDXs').textContent = 'No fault classified (low DR)';
+  }
+
+  const correct = mc === d.fault;
+  if (!S.blindMode && !S.mixedMode) {
+    strip.innerHTML = `<div class="strip-icon">${correct?'🎉':'🤔'}</div>
+      <div class="strip-body">
+        <p><strong>Run complete.</strong> ${correct
+          ? `The AI correctly identified <strong>${fInfo.n}</strong> and caught <strong>${dr}% of the fault period</strong> with ${far===0?'zero false alarms':'a '+far+'% false alarm rate'}.`
+          : `The AI caught <strong>${dr}% of the fault period</strong>. It classified it as <strong>${mInfo.n}</strong> (actual fault: ${fInfo.n}).`}
+        </p>
+        <p style="margin-top:5px;font-size:12px;color:var(--dim)">
+          Try a different <strong style="color:var(--text)">run number (1–500)</strong> to see how the AI performs on other simulations of the same fault type.
+        </p>
+      </div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   EVENTS
+══════════════════════════════════════════════════════════ */
+faultSel.addEventListener('change', () => {
+  playBtn.disabled = !S.ok || !faultSel.value;
+  const f = parseInt(faultSel.value);
+  if (!f) return;
+  const info = FI[f] || { n:`Fault ${f}`, cat:'?', d:'', c:'#FF4D5E' };
+  strip.innerHTML = `<div class="strip-icon" style="color:${info.c}">💡</div>
+    <div class="strip-body">
+      <p><strong>${info.n}</strong> &nbsp;·&nbsp; <span style="color:var(--muted);font-size:12px">${info.cat} fault · Category ${f <= 7 ? 'step change' : f <= 12 ? 'random variation' : info.cat.toLowerCase()}</span></p>
+      <p style="margin-top:4px;">${info.d}</p>
+    </div>`;
+  if (S.phase === 'playing' || S.phase === 'paused') { clearInterval(S.tid); resetUI(); }
+});
+
+// Mode tab event listeners
+modeTabNormal.addEventListener('click', () => switchMode('normal'));
+modeTabMixed.addEventListener('click',  () => switchMode('mixed'));
+modeTabBlind.addEventListener('click',  () => switchMode('blind'));
+
+// Mixed run input — update info chip and bar on change
+mixedRunIn.addEventListener('input', () => {
+  if (S.mode !== 'mixed') return;
+  updateMixedRunChip();
+  if (S.phase === 'playing' || S.phase === 'paused') { clearInterval(S.tid); resetUI(); }
+});
+
+// Reveal button
+revealBtn.addEventListener('click', revealTrueFault);
+
+playBtn.addEventListener('click', async () => {
+  if (S.phase === 'playing')              { clearInterval(S.tid); S.phase='paused'; setBtn('resume'); return; }
+  if (S.phase === 'paused')              { S.phase='playing'; S.tid=setInterval(tick,33); setBtn('pause'); return; }
+  if (S.phase === 'done' || S.phase === 'idle') { loadAndStart(); }
+});
+
+document.querySelectorAll('.spd').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.spd').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    S.speed = parseInt(b.dataset.v);
+  });
+});
+
+window.addEventListener('resize', () => { initChart(); if (S.data) drawChart(S.frame); else drawChart(0); });
+
+/* ══════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════ */
+initChart(); drawChart(0);
+connectServer();
+</script>
+</body>
+</html>

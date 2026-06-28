@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Project Data (Very Large Files)
+data/raw/*.RData
+data/processed/*.csv
+
+# Models
+models/*.pth
+models/*.npz
+
+# Outputs
+outputs/*.png
+outputs/*.xlsx
+outputs/*.html
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
